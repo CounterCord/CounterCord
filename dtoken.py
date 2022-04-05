@@ -1,0 +1,2 @@
+#!/usr/bin/python
+TOKEN = 'XXXXXXXXXXXXXxxxxxxxxxxXXXXXXXXXXXX' #YOUR DISCORD APP TOKEN
