@@ -1,3 +1,5 @@
+Website: https://countercord.github.io/
+
 CounterCord is a Bitcoin and XCP Asset Verification tool for Discord!
 
 Verify Once, Party Everywhere!
