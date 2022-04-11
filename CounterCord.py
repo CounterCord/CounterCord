@@ -99,6 +99,7 @@ loadList = []
 GUILDLIST = []
 USERLIST = []
 ASSETLIST = []
+BLOCKNUM = 0
 
 # GETS THE CLIENT OBJECT FROM DISCORD.PY. CLIENT IS SYNONYMOUS WITH BOT.
 bot = discord.Client(intents=discord.Intents.all())
@@ -108,6 +109,8 @@ bot = discord.Client(intents=discord.Intents.all())
 async def on_ready():
     print(f'Connected to {bot.user.name}!')
     await asyncio.create_task(loadGuilds(bot))
+    asyncio.create_task(blockNumUpdater())
+    await asyncio.sleep(5)
     asyncio.create_task(jsonSaver(bot))
     asyncio.create_task(assetManager())
     print(f'{bot.user.name} is Ready!')
@@ -115,6 +118,7 @@ async def on_ready():
 
 
 async def loadGuilds(bot):
+    global BLOCKNUM
     # CREATES A COUNTER TO KEEP TRACK OF HOW MANY GUILDS / SERVERS THE BOT IS CONNECTED TO.
     guild_count = 0
     tempGuildIdList = []
@@ -126,7 +130,7 @@ async def loadGuilds(bot):
         for m in gs.members:
             tempGuildMemberIDs.append(str(m.id))
     if not exists('guilds.json'):
-        await asyncio.create_task(createJsonFile())
+        await createJsonFile()
     with open('guilds.json') as json_file:
         data = json.load(json_file)
         if data is not None:
@@ -170,8 +174,8 @@ async def loadGuilds(bot):
                     tempAsset.setBlock(aBlock)
                     ASSETLIST.append(tempAsset)
 
-
-            #print('size ' + str(len(GUILDLIST)))
+            BLOCKNUM = data['LastBlock']
+            print('BLOCKNUM ' + str(data['LastBlock']))
 
     for guild in bot.guilds:
         unverified = []
@@ -210,7 +214,8 @@ async def loadGuilds(bot):
     print("Guild search finished...")
 
 async def getMemberByID(id):
-    u = None
+    global USERLIST
+    u = False
     for m in USERLIST:
         if str(m.id) is str(id):
             return m
@@ -238,6 +243,18 @@ async def getMemberAssetList(mem):
         l.append(a)
     return l
 
+async def getGuildAssetList(g):
+    gal = []
+    for a in g.assets:
+        gal.append(a)
+    return gal
+
+async def getGuildAssetNameList(g):
+    gal = []
+    for a in g.assets:
+        gal.append(a.name)
+    return gal
+
 async def getMemberAssetByName(mem, aName):
     for a in mem.verifiedAssets:
         if a.name == aName:
@@ -245,6 +262,7 @@ async def getMemberAssetByName(mem, aName):
     return None
 
 async def getAssetByName(n):
+    global ASSETLIST
     r = None
     for a in ASSETLIST:
         if a.name is n:
@@ -253,6 +271,12 @@ async def getAssetByName(n):
 
 async def getGuildByID(id):
     for g in bot.guilds:
+        if str(g.id) == str(id):
+            return g
+    return None
+
+async def getGuildFromListByID(id):
+    for g in GUILDLIST:
         if str(g.id) == str(id):
             return g
     return None
@@ -272,10 +296,11 @@ async def memberNameCheck(ID):
     return False
 
 async def saveJson(bot):
+    global BLOCKNUM
     #print('size ' + str(len(GUILDLIST)))
     with open(fName, 'r') as json_file:
         data = json.load(json_file)
-    information = {"Guilds":[],"Members":[],"Assets":[]}
+    information = {"Guilds":[],"Members":[],"Assets":[],"LastBlock":(BLOCKNUM-1)}
     for gs in GUILDLIST:
         g = await getGuildByID(gs.id)
         if g is not None:
@@ -342,46 +367,39 @@ async def BTCRoleMonitor():
 
 
 async def XcpBlockMonitor():
+    global BLOCKNUM
     print("XCP Block Monitor Started...")
-    lastBlock = await getLastBlock()
-    while lastBlock is None:
-        lastBlock = await getLastBlock()
-        await asyncio.sleep(sleepTime)
+    lastBlock = BLOCKNUM
     tempBlock = lastBlock
     while(True):
-        lastBlock = await getLastBlock()
-        if lastBlock is not None:
-            if (lastBlock > tempBlock):
-                if (lastBlock >= tempBlock+2):
-                    lastBlock = tempBlock+1
-                print("XCP asset check")
-                await checkAssetsFromBlock(lastBlock)
-                tempBlock = lastBlock
-
+        lastBlock = BLOCKNUM
+        if (lastBlock > tempBlock):
+            if (lastBlock >= tempBlock+2):
+                lastBlock = tempBlock+1
+            print("XCP asset check")
+            await checkAssetsFromBlock(lastBlock)
+            tempBlock = lastBlock
         await asyncio.sleep(sleepTime)
 
 async def assetDiscordRoleMonitor():
+    global BLOCKNUM
     print("Asset Discord Role Monitor Started...")
     while(True):
-        lastBlock = await getLastBlock()
-        while lastBlock is None:
-            lastBlock = await getLastBlock()
-            await asyncio.sleep(sleepTime)
-        if lastBlock is not None:
-            count = 0
-            for a in ASSETLIST:
-                if lastBlock > a.block:
-                    print("Asset: "+str(a.name)+" Expired!")
-                    for gs in bot.guilds:
-                        if discord.utils.get(gs.roles, name=str(a.name)+"-Verified") is not None:
-                            role_object = discord.utils.get(gs.roles, name=str(a.name)+"-Verified")
-                            await role_object.delete()
-                    for g in GUILDLIST:
-                        for ga in g.assets:
-                            if ga.name == str(a.name):
-                                g.delAsset(str(a.name))
-                    ASSETLIST.pop(count)
-                count = count + 1
+        lastBlock = BLOCKNUM
+        count = 0
+        for a in ASSETLIST:
+            if lastBlock > a.block:
+                print("Asset: "+str(a.name)+" Expired!")
+                for gs in bot.guilds:
+                    if discord.utils.get(gs.roles, name=str(a.name)+"-Verified") is not None:
+                        role_object = discord.utils.get(gs.roles, name=str(a.name)+"-Verified")
+                        await role_object.delete()
+                for g in GUILDLIST:
+                    for ga in g.assets:
+                        if ga.name == str(a.name):
+                            g.delAsset(str(a.name))
+                ASSETLIST.pop(count)
+            count = count + 1
         await asyncio.sleep(sleepTime)
 
 async def assetMemberRoleMonitor():
@@ -442,13 +460,45 @@ async def assetGetHolders(assetName):
         return None
         #print("its NONE!")
 
+async def blockNumUpdater():
+    global BLOCKNUM
+    print("Block Number Updater Started...")
+    while True:
+        print("blockNumUpdater block check: " + str(BLOCKNUM))
+        lastBlock = await getLastBlock()
+        if lastBlock is False or lastBlock is None:
+            while True:
+                lastBlock = await getLastBlock()
+                if lastBlock is not False or lastBlock is not None:
+                    if lastBlock > BLOCKNUM:
+                        if (lastBlock >= BLOCKNUM+2):
+                            print("blockNumUpdater block slowdown enabled: " + str(BLOCKNUM))
+                            lastBlock = BLOCKNUM+1
+                            BLOCKNUM = lastBlock
+                            break
+                        else:
+                            print("blockNumUpdater blocks up to date: " + str(BLOCKNUM))
+                            BLOCKNUM = lastBlock
+                            break
+        else:
+            if lastBlock > BLOCKNUM:
+                if (lastBlock >= BLOCKNUM+2):
+                    print("blockNumUpdater block slowdown enabled: " + str(BLOCKNUM))
+                    lastBlock = BLOCKNUM+1
+                    BLOCKNUM = lastBlock
+                else:
+                    print("blockNumUpdater blocks up to date: " + str(BLOCKNUM))
+                    BLOCKNUM = lastBlock
+        await asyncio.sleep(60*5)
+
+
 async def getLastBlock():
     try:
         payload = {"method": "get_running_info","params": {},"jsonrpc": "2.0","id": 0}
         response = requests.post(url, data=json.dumps(payload), headers=headers, auth=auth)
         jsonData = json.loads(response.text)
         r=jsonData["result"]
-        strReturn = None;
+        strReturn = False;
         for key, value in r.items():
             if (str(key) == "last_block"):
                 jD = value
@@ -461,7 +511,7 @@ async def getLastBlock():
                                 return strReturn
         return strReturn
     except MaxRetryError:
-        return None
+        return False
 # checks for msg from addy at block toBlockNumber
 async def checkAssetsFromBlock(toBlockNumber):
     tempAssets = []
@@ -539,7 +589,7 @@ async def checkMessageFromBlock(msg, toBlockNumber):
                         sData = str(v2)
                     if (str(k2) == 'text'):
                         tData = str(v2)
-            if search(msg, tData):
+            if msg in tData:
                 #print("Address Found: " + sData + " Message: " + tData)
                 #print("success!!!")
                 return sData
@@ -547,42 +597,39 @@ async def checkMessageFromBlock(msg, toBlockNumber):
 
 
 async def verifyUser(v, message):
+    global BLOCKNUM
     x = 1
-    lastBlock = await getLastBlock()
-    while lastBlock is None:
-        lastBlock = await getLastBlock()
-        await asyncio.sleep(sleepTime)
+    lastBlock = BLOCKNUM
     tempBlock = lastBlock
     tempUser = user(message.author.name, message.author.id, False)
     while (not tempUser.isVerified and str(lastBlock) <= str(v.blockStart+6)):
-        if lastBlock is not None:
-            if (lastBlock > tempBlock):
-                if (lastBlock >= tempBlock+2):
-                    lastBlock = tempBlock+1
-                tempBlock = lastBlock
-                print("("+str(x)+")attempting to verify: " + message.author.name)
-                address = await checkMessageFromBlock(v.alpha, lastBlock)
-                if address is not None:
-                    for member in USERLIST:
-                        if str(member.id) == str(message.author.id):
-                            member.setAddress(address)
-                            #print("updated member "+member.name+" status!!!!")
-                            await message.author.send("You have been verifyed to own the address: ||" + address +"||\n\n")
-                            member.verify(True)
-                            c = 0
-                            for vs in verificationList:
-                                if vs.name == member.name:
-                                    verificationList.pop(c)
-                                c = c + 1
-                            tempUser = member
-                            break
+        if (lastBlock > tempBlock):
+            if (lastBlock >= tempBlock+2):
+                lastBlock = tempBlock+1
+            tempBlock = lastBlock
+            print("("+str(x)+")attempting to verify: " + message.author.name)
+            address = await checkMessageFromBlock(v.alpha, lastBlock)
+            if address is not None:
+                for member in USERLIST:
+                    if str(member.id) == str(message.author.id):
+                        member.setAddress(address)
+                        #print("updated member "+member.name+" status!!!!")
+                        await message.author.send("You have been verifyed to own the address: ||" + address +"||\n\n")
+                        member.verify(True)
+                        c = 0
+                        for vs in verificationList:
+                            if vs.name == member.name:
+                                verificationList.pop(c)
+                            c = c + 1
+                        tempUser = member
+                        break
 
-                x=x+1
+            x=x+1
         await asyncio.sleep(sleepTime)
         if not tempUser.isVerified:
-            lastBlock = await getLastBlock()
-            while lastBlock is None:
-                lastBlock = await getLastBlock()
+            lastBlock = BLOCKNUM
+            while lastBlock == tempBlock:
+                lastBlock = BLOCKNUM
                 await asyncio.sleep(sleepTime)
         if str(lastBlock) == str(v.blockStart+5):
             await message.author.send("We have not found you message broadcast yet!\n If you have not sent yet, your code expires in 1 more block.\n we recommend waiting and trying verify again after expiration! \n\n")
@@ -614,10 +661,15 @@ async def createJsonFile():
 
 @bot.event
 async def on_member_join(member):
-    for mem in USERLIST:
-        if str(mem.id) == str(member.id):
-            if not member.bot:
-                USERLIST.append(user(member.name, str(member.id), str(False)))
+    global USERLIST
+    mem = False
+    for m in USERLIST:
+        if str(m.id) == str(member.id):
+            mem = m
+            break
+    if not member.bot:
+        if mem is False:
+            USERLIST.append(user(member.name, str(member.id), str(False)))
     gName = member.guild.name
     for gs in GUILDLIST:
         if str(gs.name) == str(gName):
@@ -634,18 +686,17 @@ async def on_guild_join(guild):
             if discord.utils.get(guild.roles,name="BTC-Verified"):
                 permText = "```We have proper permission to create roles! :D```"
             else:
-                permText = "```We have DO NOT proper permission to create roles! \n Please put CounterCord role high enough to create roles!```"
+                permText = "```We have DO NOT have proper permission to create roles! \n Please put CounterCord role high enough to create roles!```"
             await channel.send('Hi! \n Welcome to CounterCord! \n\n CounterCord is a BTC/XCP asset verification tool! \n\n Users may verify their discord account by broadcasting a custom message \n Discord admins may add asset verification as a premium service! \n  check out the github:' + ccGithubURL + " \n or For all CounterCord info check out the site: "+ ccSiteURL + " \n\n" + permText)
             break
 
 async def appendGuild(guild):
     tempGuildMemberIDs = []
-    for m in USERLIST:
-        tempGuildMemberIDs.append(str(m.id))
-    for member in guild.members:
+    for mems in guild.members:
         if not member.bot:
-            if str(member.id) not in tempGuildMemberIDs:
-                tempGuildMemberIDs.append(str(member.id))
+            tempGuildMemberIDs.append(str(member.id))
+            mem = await getMemberByID(str(mems.id))
+            if mem is False:
                 tempMember = user(member.name, str(member.id), str(False))
                 unverified.append(str(member.id))
                 USERLIST.append(tempMember)
@@ -656,7 +707,7 @@ async def appendGuild(guild):
 # EVENT LISTENER FOR WHEN A NEW MESSAGE IS SENT TO A CHANNEL.
 @bot.event
 async def on_message(message):
-    if message.content == "cc help":
+    if (message.content).lower() == "cc help":
         response = "**All info on site:** " + ccSiteURL + "\n"
         response = response + '```\n ' + "cc verify \n - Used to verify your bitcoin address with CounterCord \n"
         response = response + '\n ' + "cc reverify \n - Used to reverify/change your bitcoin address with CounterCord \n"
@@ -675,7 +726,7 @@ async def on_message(message):
         else:
             await message.channel.send(response+'```')
 
-    if message.content == "cc verify":
+    if (message.content).lower() == "cc verify":
         vCheck = False
         for mem in USERLIST:
             if str(mem.id) == str(message.author.id):
@@ -687,9 +738,15 @@ async def on_message(message):
                     await message.channel.send(response)
                     randomKey = await keyGen()
                     try:
+                        lastBlock = await getLastBlock()
+                        while lastBlock is False:
+                            lastBlock = await getLastBlock()
+                            await asyncio.sleep(sleepTime)
+                        tempBlock = lastBlock
                         await message.author.send("Hello, Lets get you verified! \n please broadcast a message on BTC/XCP blockchain\n within the next 6 blocks with the following code: " + str(randomKey) +" \n\n"
-                        + "This process could take up to an hour... once you're verified, you will get a BTC-Verified role!")
-                        ver = verification(str(message.author.name), randomKey, await getLastBlock())
+                        + "This process could take up to an hour... once you're verified, you will get a BTC-Verified role!\n\n"
+                        + "**Bot will only search next 6 blocks**")
+                        ver = verification(str(message.author.name), randomKey, tempBlock)
                         verificationList.append(ver)
                         asyncio.create_task(verifyUser(ver, message))
                     except discord.Forbidden:
@@ -702,7 +759,7 @@ async def on_message(message):
                     response = message.author.mention + " You are verified with Address: ||" + mem.address + "||"
                     await message.channel.send(response)
 
-    if message.content == "cc reverify":
+    if (message.content).lower() == "cc reverify":
         vCheck = False
         for mem in USERLIST:
             if str(mem.id) == str(message.author.id):
@@ -715,9 +772,15 @@ async def on_message(message):
                     response = "Check DM to Verify"
                     await message.channel.send(response)
                     randomKey = await keyGen()
+                    lastBlock = await getLastBlock()
+                    while lastBlock is False:
+                        lastBlock = await getLastBlock()
+                        await asyncio.sleep(sleepTime)
+                    tempBlock = lastBlock
                     await message.author.send("Hello, Lets get you reverified! \n please broadcast a message on BTC/XCP blockchain with the following code: " + str(randomKey) +"\n\n"
-                    + "This process could take up to an hour... once you're verified, you will still have a BTC-Verified role!")
-                    ver = verification(str(message.author.name), randomKey, await getLastBlock())
+                    + "This process could take up to an hour... once you're verified, you will still have a BTC-Verified role!\n\n"
+                    + "**Bot will only search next 6 blocks**")
+                    ver = verification(str(message.author.name), randomKey, tempBlock)
                     verificationList.append(ver)
                     asyncio.create_task(verifyUser(ver, message))
                 elif vCheck:
@@ -730,7 +793,7 @@ async def on_message(message):
                     response = "The Address can't be found, or your last try expired, please try: \n cc verify"
                     await message.channel.send(response)
 
-    if message.content == "cc address":
+    if (message.content).lower() == "cc address":
         for mem in USERLIST:
             if str(mem.id) == str(message.author.id):
                 if (str(mem.isVerified) == 'True'):
@@ -740,7 +803,7 @@ async def on_message(message):
                     response = "It appears you arent verified yet! \n you can start verification with: \n  cc verify"
                     await message.channel.send(response)
 
-    if message.content.startswith('cc asset'):
+    if (message.content).lower().startswith('cc asset'):
         if message.content == "cc assets all":
             tempAssetsList = []
             response = ""
@@ -750,22 +813,22 @@ async def on_message(message):
             if len(tempAssetsList) > 0:
                 response = "All Supported Assets List:" + '\n' + response
                 await message.channel.send(response)
-        if message.content == "cc assets here" or message.content == "cc assets this" or message.content == "cc assets discord" or message.content == "cc assets server":
+        if (message.content).lower() == "cc assets here" or ((message.content).lower()).lower() == "cc assets this" or (message.content).lower() == "cc assets discord" or (message.content).lower() == "cc assets server":
             gID = message.guild.id
             tempAssetsList = []
+            GAL = await getGuildAssetNameList(await getGuildFromListByID(gID))
             response = ""
-            for gs in GUILDLIST:
-                if str(gs.id) == str(gID):
-                    for a in gs.assets:
-                        tempAssetsList.append(a.name)
-                        response = response + '\n - ' + a.name + " Expiration Block: " + str(a.block)
+            for a in ASSETLIST:
+                if a.name in GAL:
+                    tempAssetsList.append(a.name)
+                    response = response + '\n - ' + a.name + " Expiration Block: " + str(a.block)
             if len(tempAssetsList) == 0:
                 await message.channel.send('Sorry No Assets Found.')
             else:
-                response = gs.name + " Assets List:" + '\n' + response
+                response = message.guild.name + " Assets List:" + '\n' + response
                 await message.channel.send(response)
 
-        if message.content == "cc assets" or message.content == "cc assets me" or message.content == "cc assets "+str(message.author.mention):
+        if (message.content).lower() == "cc assets" or (message.content).lower() == "cc assets me" or (message.content).lower() == "cc assets "+str(message.author.mention):
             tempAssetsList = []
             response = ""
             for mem in USERLIST:
@@ -779,9 +842,9 @@ async def on_message(message):
                 response = message.author.name + " Assets List:" + '\n' + response
                 await message.channel.send(response)
 
-    if message.content.startswith('cc rolelist'):
+    if (message.content).lower().startswith('cc rolelist'):
         if message.author.guild_permissions.administrator:
-            split = str(message.content).split(" ")
+            split = str((message.content).upper()).split(" ")
             if len(split) == 3:
                 tempRoleName = split[2]
                 count = 0
@@ -842,9 +905,9 @@ async def on_message(message):
         else:
             await message.channel.send("Sorry this is a Admin command!")
 
-    if message.content.startswith('cc addresslist'):
+    if (message.content).lower().startswith('cc addresslist'):
         if message.author.guild_permissions.administrator:
-            split = str(message.content).split(" ")
+            split = str((message.content).lower()).split(" ")
             tempRoleName = split[2]
             count = 0
             response = ""
@@ -867,8 +930,8 @@ async def on_message(message):
         else:
             await message.channel.send("Sorry this is a Admin command!")
 
-    if message.content.startswith('cc purge'):
-        split = str(message.content).split(" ")
+    if (message.content).lower().startswith('cc purge'):
+        split = str((message.content).lower()).split(" ")
         count = 0
         response = ""
         if message.author.guild_permissions.administrator:
@@ -902,12 +965,12 @@ async def on_message(message):
         else:
             await message.channel.send("Sorry this is a Admin command!")
 
-    if message.content.startswith('cc add asset'):
+    if (message.content).lower().startswith('cc add asset'):
         tAssetList = []
         for tas in ASSETLIST:
             tAssetList.append(tas.name)
         if message.author.guild_permissions.administrator:
-            if message.content == "cc add asset default":
+            if (message.content).lower() == "cc add asset default":
                 aList = []
                 for gs in GUILDLIST:
                     if str(gs.id) == str(message.guild.id):
@@ -954,7 +1017,7 @@ async def on_message(message):
         else:
             await message.channel.send("You arent an admin and can not use this command. sorry.")
 
-    if message.content.startswith('cc remove asset') or message.content.startswith('cc rem asset') or message.content.startswith('cc del asset') or message.content.startswith('cc delete asset'):
+    if (message.content).lower().startswith('cc remove asset') or (message.content).lower().startswith('cc rem asset') or (message.content).lower().startswith('cc del asset') or (message.content).lower().startswith('cc delete asset'):
         tAssetList = []
         split = str(message.content).split(" ")
         if message.author.guild_permissions.administrator:
