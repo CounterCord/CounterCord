@@ -110,8 +110,8 @@ if len(sys.argv) > 1:
         regToken = "DOGEKORD"
         defaultToken = "DOGEKORD.KASH"
         fName = "dogeguilds.json"
-        sleepTime = 60*0.25
-        blockSleepTime = 60*1
+        sleepTime = 60*0.20
+        blockSleepTime = 60*1.05
         tok = DOGETOKEN
         nativeToken = 'XDP'
         tokenChain = 'DOGECOIN'
@@ -306,7 +306,7 @@ async def getAssetByName(n):
     global ASSETLIST
     r = None
     for a in ASSETLIST:
-        if a.name is n:
+        if a.name == n:
             return a
     return r
 
@@ -394,17 +394,26 @@ async def BTCRoleMonitor():
             for gs in bot.guilds:
                 for member in gs.members:
                     if str(member.id) == str(mem.id):
-                        if not discord.utils.get(gs.roles,name=roleName):
-                            await gs.create_role(name=roleName)
-                        if discord.utils.get(gs.roles,name=roleName):
-                            ar = discord.utils.get(gs.roles,name=roleName)
-                            if str(mem.isVerified) == "True":
-                                if ar not in member.roles:
-                                    await member.add_roles(ar)
-                            if str(mem.isVerified) == "False":
-                                if ar in member.roles:
-                                    await member.remove_roles(ar)
-
+                        try:
+                            if not discord.utils.get(gs.roles,name=roleName):
+                                await gs.create_role(name=roleName)
+                            if discord.utils.get(gs.roles,name=roleName):
+                                ar = discord.utils.get(gs.roles,name=roleName)
+                                if str(mem.isVerified) == "True":
+                                    if ar not in member.roles:
+                                        await member.add_roles(ar)
+                                if str(mem.isVerified) == "False":
+                                    if ar in member.roles:
+                                        await member.remove_roles(ar)
+                        except:
+                            print("BTCRoleMonitor no permission: " + str(gs.name))
+                            #for channel in gs.text_channels:
+                            #    if channel.permissions_for(guild.me).send_messages:
+                            #        permText = "```Please be sure "+botName+" has a high enough role to have permission to create roles! :D```"
+                            #        msgContent = 'Hi! \n Welcome to '+botName+'! \n\n '+botName+' is a '+tokenChain + '/'+nativeToken + ' asset verification tool! \n\n Users may verify their discord account by broadcasting a custom message \n Discord admins may add asset verification as a premium service! \n  check out the github:' + ccGithubURL + " \n or For all "+botName+" info check out the site: "+ ccSiteURL + " \n\n" + permText
+                            #        if str(channel.last_message.content) != str(message.content):
+                            #            await channel.send(msgContent)
+                            #            break
         await asyncio.sleep(sleepTime)
 
 
@@ -616,7 +625,7 @@ async def checkAssetsFromBlock(toBlockNumber):
                 my_string_bytes = bytes(my_string, encoding='utf-8')
 
                 binary_string = codecs.decode(my_string_bytes, "hex")
-                tknToAdd = str(binary_string, 'utf-8')
+                tknToAdd = str(binary_string, 'utf-8').upper()
                 print(regToken + ": #" + qData + " Token to Add: " + tknToAdd)
                 if tknToAdd not in tempAssets:
                     tempAsset = asset(tknToAdd)
