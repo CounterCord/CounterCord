@@ -1,4 +1,8 @@
 Website: https://countercord.github.io/
+DogeKord: https://countercord.github.io/DogeKord.html
+
+DogeKord runs the same exact code with the "DOGE" flag on runtime.
+both bots are compatible to have in same server if wanted.
 
 CounterCord is a Bitcoin and XCP Asset Verification tool for Discord!
 
