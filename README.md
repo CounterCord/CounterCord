@@ -21,5 +21,10 @@ that member will automatically get BTC-Verified role!
 
 CounterCord can also have XCP assets verified to add exclusive roles!
 
+PLS make sure bot has high enough role to create permissions!
+
 If you would like to invite CounterCord to your Discord
 Click here: https://discord.com/oauth2/authorize?client_id=953709081670086746&permissions=8&scope=bot
+
+If you would like to invite DogeKord to your Discord
+Click here: https://discord.com/oauth2/authorize?client_id=972238480086286376&permissions=8&scope=bot
