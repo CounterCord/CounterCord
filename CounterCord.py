@@ -111,7 +111,7 @@ if len(sys.argv) > 1:
         defaultToken = "DOGEKORD.KASH"
         fName = "dogeguilds.json"
         sleepTime = 60*0.20
-        blockSleepTime = 60*1.05
+        blockSleepTime = 60*0.95
         tok = DOGETOKEN
         nativeToken = 'XDP'
         tokenChain = 'DOGECOIN'
@@ -394,19 +394,19 @@ async def BTCRoleMonitor():
             for gs in bot.guilds:
                 for member in gs.members:
                     if str(member.id) == str(mem.id):
-                        try:
-                            if not discord.utils.get(gs.roles,name=roleName):
-                                await gs.create_role(name=roleName)
-                            if discord.utils.get(gs.roles,name=roleName):
-                                ar = discord.utils.get(gs.roles,name=roleName)
-                                if str(mem.isVerified) == "True":
-                                    if ar not in member.roles:
-                                        await member.add_roles(ar)
-                                if str(mem.isVerified) == "False":
-                                    if ar in member.roles:
-                                        await member.remove_roles(ar)
-                        except:
-                            print("BTCRoleMonitor no permission: " + str(gs.name))
+                        #try:
+                        if not discord.utils.get(gs.roles,name=roleName):
+                            await gs.create_role(name=roleName)
+                        if discord.utils.get(gs.roles,name=roleName):
+                            ar = discord.utils.get(gs.roles,name=roleName)
+                            if str(mem.isVerified) == "True":
+                                if ar not in member.roles:
+                                    await member.add_roles(ar)
+                            if str(mem.isVerified) == "False":
+                                if ar in member.roles:
+                                    await member.remove_roles(ar)
+                        #except:
+                            #print("BTCRoleMonitor no permission: " + str(gs.name))
                             #for channel in gs.text_channels:
                             #    if channel.permissions_for(guild.me).send_messages:
                             #        permText = "```Please be sure "+botName+" has a high enough role to have permission to create roles! :D```"
@@ -505,24 +505,21 @@ async def assetCheckRoles(assetName):
 async def assetGetHolders(assetName):
     hodlerList = []
     parms = {"asset":str(assetName)}
+    #print("p: " +str(assetName))
     payload = {"method": "get_holders","params": parms,"jsonrpc": "2.0","id": 0}
     response = requests.post(url, data=json.dumps(payload), headers=headers, auth=auth)
-    try:
-        if response.text is not None:
-            jsonData = json.loads(response.text)
-            r=jsonData["result"]
-            if r != []:
-                for l in r:
-                    for k, v in l.items():
-                        if str(k)== "address":
-                            hodlerList.append(str(v))
-                            #print("k: " + str(k) + " v: " + str(v))
-                return hodlerList
-        else:
-            return None
-    except:
-        print("GetHodlersError")
-        return None
+    #print("r: " +str(response.text))
+    jsonData = json.loads(response.text)
+    if jsonData is not None:
+        r=jsonData["result"]
+        for l in r:
+            for k, v in l.items():
+                if str(k)== "address":
+                    hodlerList.append(str(v))
+                    #print("k: " + str(k) + " v: " + str(v))
+        return hodlerList
+    return None
+
         #print("its NONE!")
 
 async def blockNumUpdater():
@@ -594,6 +591,7 @@ async def checkAssetsFromBlock(toBlockNumber):
     parms = {"block_index":toBlockNumber}
     payload = {"method": "get_messages","params": parms,"jsonrpc": "2.0","id": 0}
     response = requests.post(url, data=json.dumps(payload), headers=headers, auth=auth)
+    #print(str(response.text))
     jsonData = json.loads(response.text)
     #print("get_messages Check: " + str(jsonData))
     r=jsonData["result"]
@@ -874,7 +872,7 @@ async def on_message(message):
         for mem in USERLIST:
             if str(mem.id) == str(message.author.id):
                 if (str(mem.isVerified) == 'True'):
-                    response = "You are verified with Address: ||" + mem.address + "||"
+                    response = str(message.author.name) + " You are verified with Address: ||" + mem.address + "||"
                     await message.channel.send(response)
                 else:
                     response = "It appears you arent verified yet! \n you can start verification with: \n  "+commandStart+" verify"
