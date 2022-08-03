@@ -520,7 +520,93 @@ async def assetGetHolders(assetName):
         return hodlerList
     return None
 
-        #print("its NONE!")
+async def getAssetInfo(assetName):
+    hodlerList = []
+    parms = {"asset":str(assetName)}
+    #print("p: " +str(assetName))
+    payload = {"method": "get_asset_info","params": parms,"jsonrpc": "2.0","id": 0}
+    response = requests.post(url, data=json.dumps(payload), headers=headers, auth=auth)
+    print("r: " +str(response.text))
+    jsonData = json.loads(response.text)
+    if jsonData is not None:
+        r=jsonData["result"]
+        for l in r:
+            for k, v in l.items():
+                print("k: " + str(k) + " v: " + str(v))
+
+                if str(k)== "address":
+                    hodlerList.append(str(v))
+                    #print("k: " + str(k) + " v: " + str(v))
+        return hodlerList
+    return None
+
+async def getAssetSupply(assetName):
+    hodlerList = []
+    parms = {"asset":str(assetName)}
+    #print("p: " +str(assetName))
+    payload = {"method": "get_supply","params": parms,"jsonrpc": "2.0","id": 0}
+    response = requests.post(url, data=json.dumps(payload), headers=headers, auth=auth)
+    #print("r: " +str(response.text))
+    jsonData = json.loads(response.text)
+    if jsonData is not None:
+        r=jsonData["result"]
+        for l in r:
+            for k, v in l.items():
+                print("k: " + str(k) + " v: " + str(v))
+
+                if str(k)== "address":
+                    hodlerList.append(str(v))
+                    #print("k: " + str(k) + " v: " + str(v))
+        return hodlerList
+    return None
+
+async def getAssetBalance(address, asset):
+    hodlerList = []
+    parms = {"filters": [{"field": "address", "op": "==", "value": str(address)}]}
+    #print("p: " +str(assetName))
+    payload = {"method": "get_balances","params": parms,"jsonrpc": "2.0","id": 0}
+    response = requests.post(url, data=json.dumps(payload), headers=headers, auth=auth)
+    #print("r: " +str(response.text))
+    jsonData = json.loads(response.text)
+    if jsonData is not None:
+        r=jsonData["result"]
+        for l in r:
+            for k, v in l.items():
+                print("k: " + str(k) + " v: " + str(v))
+
+                if str(k)== "address":
+                    hodlerList.append(str(v))
+                    #print("k: " + str(k) + " v: " + str(v))
+        return hodlerList
+    return None
+
+
+async def getBalance(address):
+    hodlerList = []
+    parms = {"filters": [{"field": "address", "op": "==", "value": str(address)}]}
+    #print("p: " +str(assetName))
+    payload = {"method": "get_balances","params": parms,"jsonrpc": "2.0","id": 0}
+    response = requests.post(url, data=json.dumps(payload), headers=headers, auth=auth)
+    #print("r: " +str(response.text))
+    jsonData = json.loads(response.text)
+    sendNext=False
+    if jsonData is not None:
+        r=jsonData["result"]
+        for l in r:
+            for k, v in l.items():
+                print("k: " + str(k) + " v: " + str(v))
+                if sendNext == True:
+                    hodlerList.append(str(v*0.00000001))
+                    sendNext=False
+                if str(k)== "asset":
+                    if str(v)== "XCP":
+                        sendNext=True
+                    if str(v)== "BTC":
+                        sendNext=True
+
+                        #print("k: " + str(k) + " v: " + str(v))
+        return hodlerList
+    return None
 
 async def blockNumUpdater():
     global BLOCKNUM
@@ -673,7 +759,7 @@ async def verifyUser(v, message):
     lastBlock = BLOCKNUM
     tempBlock = lastBlock
     tempUser = user(message.author.name, message.author.id, False)
-    while (not tempUser.isVerified and str(lastBlock) <= str(v.blockStart+6)):
+    while (not tempUser.isVerified and str(lastBlock) <= str(v.blockStart+veriBlocks)):
         if (lastBlock > tempBlock):
             if (lastBlock >= tempBlock+2):
                 lastBlock = tempBlock+1
@@ -854,7 +940,7 @@ async def on_message(message):
                     tempBlock = lastBlock
                     await message.author.send("Hello, Lets get you reverified! \n please broadcast a message on "+tokenChain + "/"+nativeToken + " blockchain with the following code: " + str(randomKey) +"\n\n"
                     + "This process could take up to an hour... once you're verified, you will still have a " + roleName + " role!\n\n"
-                    + "**Bot will only search next 6 blocks**")
+                    + "**Bot will only search next "+str(veriBlocks)+" blocks**")
                     ver = verification(str(message.author.name), randomKey, tempBlock)
                     verificationList.append(ver)
                     asyncio.create_task(verifyUser(ver, message))
@@ -878,8 +964,46 @@ async def on_message(message):
                     response = "It appears you arent verified yet! \n you can start verification with: \n  "+commandStart+" verify"
                     await message.channel.send(response)
 
+    if (message.content).lower().startswith(commandStart + " balance"):
+        if len(str((message.content).lower()).split(" ")) == 2:
+            for mem in USERLIST:
+                if str(mem.id) == str(message.author.id):
+                    if (str(mem.isVerified) == 'True'):
+                        b = await getBalance(mem.address)
+                        response = str(message.author.name) + " You're balance: ||" + str(b) + "||"
+                        await message.channel.send(response)
+                    else:
+                        response = "It appears you arent verified yet! \n you can start verification with: \n  "+commandStart+" verify"
+                        await message.channel.send(response)
+        if len(str((message.content).lower()).split(" ")) == 3:
+            for mem in USERLIST:
+                if str(mem.id) == str(message.author.id):
+                    if (str(mem.isVerified) == 'True'):
+                        b = await getAssetBalance(mem.address, tASSET)
+                        response = str(message.author.name) + " You're balance: ||" + str(b) + "||"
+                        await message.channel.send(response)
+                    else:
+                        response = "It appears you arent verified yet! \n you can start verification with: \n  "+commandStart+" verify"
+                        await message.channel.send(response)
+
+    if (message.content).lower().startswith(commandStart + " info"):
+        if len(str((message.content).lower()).split(" ")) == 3:
+            tmp = ((message.content).lower()).split(" ")
+            tempAssetName = str(tmp[2].upper())
+            ta = await getAssetByName(tempAssetName)
+            if ta is not None:
+                response = tempAssetName + " Info:" + '\n' + botName + " Expiration: " + str(ta.block)
+                aInfo = await getAssetInfo(tempAssetName)
+                await message.channel.send(response)
+            else:
+                response = "Sorry, it appears " + botName + " could not find info on that... " + '\n' + "Please make sure " + str(tempAssetName) + " is in the verified asset list by running command: " + '\n' +commandStart+ " assets here"
+                await message.channel.send(response)
+        else:
+            response = "Error, try again using this format:" + '\n' + str(commandStart) + " info <ASSETNAME>"
+            await message.channel.send(response)
+
     if (message.content).lower().startswith(commandStart + ' asset'):
-        if message.content == commandStart + " assets all":
+        if (message.content).lower() == commandStart + " assets all":
             tempAssetsList = []
             response = ""
             for a in ASSETLIST:
@@ -1070,7 +1194,7 @@ async def on_message(message):
                             await message.channel.send(msg)
             else:
                 split = str(message.content).split(" ")
-                tempTokenName = split[3]
+                tempTokenName = split[3].upper()
                 if tempTokenName in tAssetList:
                     aList = []
                     for gs in GUILDLIST:
@@ -1121,7 +1245,7 @@ async def on_message(message):
                             msg = "Token " + defaultToken + " has already been removed from this servers asset list!"
                             await message.channel.send(msg)
             else:
-                tempTokenName = split[3]
+                tempTokenName = split[3].upper()
                 if tempTokenName in tAssetList:
                     aList = []
                     for gs in GUILDLIST:
